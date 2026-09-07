@@ -1,0 +1,23 @@
+book: 沉浮事by阳刚猛弦上
+source_file: raw\沉浮事by阳刚猛弦上 .txt
+tags:
+- 长篇
+- HE
+- 神怪志异
+- 强制爱
+- 强弱
+- 高H
+synopsis: |-
+  鬼王看上了超怕鬼的书生，书生怕得要命，还不得不乖乖往他怀里钻。于是鬼王又强行占据了书生,这是关于一个超怕鬼的受被xp变态的鬼王攻抓在身边这样那样的故事
+  攻受地位不对等，前期强制含量极高，但无暴力成分。
+world: 古代架空，主角是现代穿越者，与鬼王有特殊关系
+style_template:
+- role: 旁白
+  instruction: 叙述故事发展，描述背景和人物心理
+- role: 主角对话
+  instruction: 表达恐惧、无奈及逐渐适应的过程
+- role: 鬼王对话
+  instruction: 展现强势、占有欲强的性格特点
+banned_terms:
+- 手机
+flags: []

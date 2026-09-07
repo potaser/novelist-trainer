@@ -1,0 +1,28 @@
+book: 相欺by冷山就木
+source_file: raw\相欺by冷山就木.txt
+tags:
+- HE
+- 虐恋
+synopsis: '题名：相欺
+
+  作者：冷山就木
+
+  Tag列表：HE、虐恋
+
+
+  简介：两个人性格都很有缺陷
+
+
+  先婚后爱
+
+
+  受品行顽劣道德低下 攻自以为是凉薄傲慢
+'
+world: 古代架空，主角性格缺陷导致的复杂情感纠葛
+style_template:
+- role: 旁白
+  instruction: 描述人物内心活动和外部环境，语言细腻、富有感情色彩
+- role: 主角对话
+  instruction: 语调多变，根据情绪波动而变化，时而尖锐刻薄，时而温柔体贴
+banned_terms:
+flags: []
