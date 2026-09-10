@@ -1,18 +1,12 @@
 book: 营养过良
 source_file: raw\营养过良.txt
-tags:
-- 可爱
-- 轻松
-- 纯爱
-- 娱乐圈
-synopsis: '书名：营养过良'
-world: 现代娱乐圈背景
+tags: []
+synopsis: ''
+world: 现代都市，娱乐圈背景，轻松甜宠
 style_template:
-- role: 旁白
-  instruction: 客观叙述事件发展，语言简洁明快
-- role: 主角对话
-  instruction: 幽默风趣，善于分析利弊
-- role: 配角对话（如沈妍）
-  instruction: 直率且略带抱怨
+- 细腻心理描写
+- 快节奏对话
+- 轻松幽默
+- 生动细节刻画
 banned_terms: []
 flags: []

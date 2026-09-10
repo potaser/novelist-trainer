@@ -156,8 +156,8 @@ def write_book_meta_stub(book_dir: Path, book: str, tags: list[str], synopsis: s
 def write_chapter_md(out_dir: Path, index: int, title: str, body: str, meta: dict, flags: list[str]):
     out_dir.mkdir(parents=True, exist_ok=True)
     frontmatter = {
-        # 新增的标注字段，初始为空，等待 draft 或人工填充
-        "world": "",  # 世界观（书级，从 _book_meta.yaml 继承，但这里也保留便于单独使用）
+        # 只保留标注相关的字段
+        "world": "",  # 世界观
         "scene": "",  # 当前场景，一句话
         "emotion": "",  # 情感基调
         "plot": "",  # 本章核心剧情，一句话
@@ -165,7 +165,6 @@ def write_chapter_md(out_dir: Path, index: int, title: str, body: str, meta: dic
         "characters": [],  # 人物状态列表
         "pov": "",  # 视角
         "word_count": None,  # 目标字数（可选）
-        "style_overrides": [],  # 保留用于特殊情况
     }
     content = "---\n" + yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False) + "---\n\n" + body + "\n"
     (out_dir / f"{index:04d}.md").write_text(content, encoding="utf-8")
@@ -174,6 +173,7 @@ def migrate_chapter_meta(chap_meta: dict) -> dict:
     """将旧的 plot_outline 格式迁移到新的 plot 格式"""
     if "plot_outline" in chap_meta and "plot" not in chap_meta:
         chap_meta["plot"] = chap_meta.pop("plot_outline")
+    
     # 确保所有新字段都存在
     for field, default in [
         ("emotion", ""),
@@ -185,13 +185,18 @@ def migrate_chapter_meta(chap_meta: dict) -> dict:
     ]:
         if field not in chap_meta:
             chap_meta[field] = default
+    
+    # 删除不需要的字段
+    for field in ["book", "chapter_index", "chapter_title", "style_overrides", "flags", "source_file"]:
+        chap_meta.pop(field, None)
+    
     return chap_meta
 
 def read_md(path: Path) -> tuple[dict, str]:
     raw = path.read_text(encoding="utf-8")
     _, fm_text, body = raw.split("---", 2)
     meta = yaml.safe_load(fm_text)
-    meta = migrate_chapter_meta(meta)
+    meta = migrate_chapter_meta(meta)  # 添加这行，处理旧格式
     return meta, body.strip("\n")
 
 
@@ -336,7 +341,8 @@ def cmd_draft(args):
             else:
                 try:
                     result = draft.draft_book_meta(
-                        args.llm_base_url, args.llm_model, meta["book"], meta.get("tags", []), sample_body
+                        args.llm_base_url, args.llm_model, meta["book"], 
+                        meta.get("tags", []), sample_body, args.api_key
                     )
                     meta["world"] = result.get("world", "")
                     meta["style_template"] = result.get("style_template", [])
@@ -362,10 +368,13 @@ def cmd_draft(args):
                 if not needs_draft:
                     continue
                 try:
+                    # 使用文件名中的章节号作为标题
+                    chapter_title = md_path.stem  # 例如 "0001"
                     result = draft.draft_chapter(
-                        args.llm_base_url, args.llm_model, world, chap_meta.get("chapter_title", ""), body
+                        args.llm_base_url, args.llm_model, world, chapter_title, body, args.api_key
                     )
                     # 只填充空字段
+                    chap_meta["world"] = chap_meta.get("world") or world
                     chap_meta["scene"] = chap_meta.get("scene") or result.get("scene", "")
                     chap_meta["emotion"] = chap_meta.get("emotion") or result.get("emotion", "")
                     chap_meta["plot"] = chap_meta.get("plot") or result.get("plot", "")
@@ -374,13 +383,14 @@ def cmd_draft(args):
                     chap_meta["pov"] = chap_meta.get("pov") or result.get("pov", "")
                     if chap_meta.get("word_count") is None:
                         chap_meta["word_count"] = result.get("word_count")
+                    
                     write_md(md_path, chap_meta, body)
                     print(f"  {md_path.relative_to(ROOT)}: 起草完成")
                 except Exception as e:
                     print(f"  {md_path.relative_to(ROOT)}: 起草失败 - {e}")
+
 def cmd_flags(args):
-    """把所有非空 flags（自动检测出的 + 你手动写进 yaml/md 里的）列出来，
-    方便集中做人工核查，而不用一本本翻。"""
+    """把所有非空 flags（自动检测出的 + 你手动写进 yaml/md 里的）列出来"""
     if not CLEANED_DIR.exists():
         raise SystemExit(f"找不到 {CLEANED_DIR}，先跑 clean")
 
@@ -393,8 +403,17 @@ def cmd_flags(args):
         for flag in meta.get("flags", []) or []:
             print(f"[book] {book_dir.name}: {flag}")
             found += 1
+        
+        # 直接读原始 frontmatter，不经过 migrate
         for md_path in sorted(book_dir.glob("*.md")):
-            chap_meta, _body = read_md(md_path)
+            raw = md_path.read_text(encoding="utf-8")
+            parts = raw.split("---", 2)
+            if len(parts) < 3:
+                continue
+            try:
+                chap_meta = yaml.safe_load(parts[1])
+            except:
+                continue
             for flag in chap_meta.get("flags", []) or []:
                 print(f"[chapter] {md_path.relative_to(ROOT)}: {flag}")
                 found += 1
@@ -483,8 +502,22 @@ def cmd_export(args):
                 continue
 
             for md_path in sorted(book_dir.glob("*.md")):
-                chap_meta, body = read_md(md_path)
-                chapter_flagged = book_flagged or bool(chap_meta.get("flags"))
+                raw = md_path.read_text(encoding="utf-8")
+                parts = raw.split("---", 2)
+                if len(parts) < 3:
+                    continue
+                
+                # 读原始 frontmatter（含 flags）
+                try:
+                    raw_meta = yaml.safe_load(parts[1])
+                except:
+                    raw_meta = {}
+                
+                chap_meta = migrate_chapter_meta(raw_meta.copy())
+                body = parts[2].strip()
+                
+                # 检查章节级 flags（从原始 meta 读）
+                chapter_flagged = book_flagged or bool(raw_meta.get("flags"))
                 if chapter_flagged and args.skip_flagged:
                     flagged_skipped += 1
                     continue
@@ -534,6 +567,7 @@ def main():
     p_draft.add_argument("--book", default=None, help="只处理 cleaned/ 下的某一本书")
     p_draft.add_argument("--llm-base-url", default="http://localhost:11434/v1")
     p_draft.add_argument("--llm-model", default="qwen3:8b")
+    p_draft.add_argument("--api-key", default=None, help="API key（使用远程服务时）")  # 添加这行
     p_draft.set_defaults(func=cmd_draft)
 
     p_export = sub.add_parser("export")
